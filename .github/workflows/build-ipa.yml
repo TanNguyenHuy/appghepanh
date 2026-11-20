@@ -50,11 +50,27 @@ jobs:
           fi
           xcrun simctl bootstatus "$SIMULATOR_ID" -b
       - name: Test layouts and PNG output
-        timeout-minutes: 8
-        run: >-
-          xcodebuild test -project GhepAnh.xcodeproj -scheme GhepAnh
-          -destination "platform=iOS Simulator,id=$SIMULATOR_ID"
-          -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+        timeout-minutes: 12
+        run: |
+          mkdir -p UITestMedia
+          python3 - <<'PY'
+          import struct, zlib
+          from pathlib import Path
+          def chunk(kind, data):
+              return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+          for index, color in enumerate([(190,40,60),(30,130,90),(40,90,190),(210,150,40)]):
+              row = b'\x00' + bytes(color)*360
+              png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR',struct.pack('>IIBBBBB',360,480,8,2,0,0,0))
+              png += chunk(b'IDAT',zlib.compress(row*480)) + chunk(b'IEND',b'')
+              Path(f'UITestMedia/{index}.png').write_bytes(png)
+          PY
+          xcrun simctl addmedia "$SIMULATOR_ID" UITestMedia/*.png
+          xcodebuild test -project GhepAnh.xcodeproj -scheme GhepAnh \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -resultBundlePath TestResults.xcresult \
+            -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+      - name: Export UI screenshots
+        run: xcrun xcresulttool export attachments --path TestResults.xcresult --output-path screenshots
       - name: Package unsigned IPA for sideload signing
         shell: bash
         run: |
@@ -68,4 +84,5 @@ jobs:
           path: |
             GhepAnh-unsigned.ipa
             SHA256.txt
+            screenshots/
           retention-days: 7

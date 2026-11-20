@@ -1,243 +1,179 @@
 import SwiftUI
-import PhotosUI
 import Photos
-import UniformTypeIdentifiers
 
-struct PhotoItem: Identifiable {
-    let id = UUID()
-    let url: URL
-    let thumbnail: UIImage
-}
+struct SelectedStrip: View {
+    @ObservedObject var editor: Editor
+    @ObservedObject var library: PhotoLibrary
 
-@MainActor final class Editor: ObservableObject {
-    @Published var photos: [PhotoItem] = []
-    @Published var preview: UIImage?
-    @Published var selected: UUID?
-    @Published var busy = false
-    @Published var status = "Chọn ảnh → ghép 2×2 / 5 / 6 → Xong để lưu vào Ảnh."
-    @Published var error: String?
-    private var generation = 0
-    private let work = DispatchQueue(label: "GhepAnh.render", qos: .userInitiated)
-
-    func importPhotos(_ results: [PHPickerResult]) {
-        guard !results.isEmpty else { return }
-        guard photos.count + results.count <= 6 else {
-            error = "Tối đa 6 ảnh mỗi lượt. Các ảnh đang chọn vẫn được giữ."; return
-        }
-        busy = true
-        Task {
-            var imported: [PhotoItem] = []
-            var importedURLs: [URL] = []
-            do {
-                for result in results {
-                    let url = try await Self.copyPhoto(result.itemProvider)
-                    importedURLs.append(url)
-                    let image = try await Task.detached(priority: .userInitiated) {
-                        try Collage.thumbnail(url, maxEdge: 160)
-                    }.value
-                    imported.append(PhotoItem(url: url, thumbnail: UIImage(cgImage: image)))
-                }
-                photos += imported
-                selected = photos.last?.id
-                busy = false
-                updatePreview()
-            } catch {
-                for url in importedURLs { try? FileManager.default.removeItem(at: url) }
-                busy = false
-                self.error = error.localizedDescription
-            }
-        }
-    }
-
-    private static func copyPhoto(_ provider: NSItemProvider) async throws -> URL {
-        let identifier = provider.registeredTypeIdentifiers.first {
-            UTType($0)?.conforms(to: .image) == true
-        } ?? UTType.image.identifier
-        return try await withCheckedThrowingContinuation { continuation in
-            provider.loadFileRepresentation(forTypeIdentifier: identifier) { source, error in
-                guard let source = source else {
-                    continuation.resume(throwing: error ?? Failure("Chưa tải được ảnh, hãy kiểm tra kết nối iCloud.")); return
-                }
-                do {
-                    let name = UUID().uuidString + "." + (source.pathExtension.isEmpty ? "heic" : source.pathExtension)
-                    let target = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-                    try FileManager.default.copyItem(at: source, to: target)
-                    continuation.resume(returning: target)
-                } catch { continuation.resume(throwing: error) }
-            }
-        }
-    }
-
-    func updatePreview() {
-        generation += 1
-        let current = generation
-        let urls = photos.map(\.url)
-        guard (4...6).contains(urls.count) else {
-            preview = nil
-            status = "Đã chọn \(urls.count) ảnh. Chọn thêm hoặc nhân đôi để đủ 4 ô."
-            return
-        }
-        work.async {
-            let result = Result { try Collage.render(urls, size: CGSize(width: 600, height: 800)) }
-            Task { @MainActor in
-                guard current == self.generation else { return }
-                switch result {
-                case .success(let image):
-                    self.preview = UIImage(cgImage: image)
-                    self.status = "PNG 6928 × 9237 • viền trắng mảnh • Xong để lưu."
-                case .failure(let error): self.error = error.localizedDescription
-                }
-            }
-        }
-    }
-
-    func duplicate() {
-        guard photos.count < 6, let photo = photos.first(where: { $0.id == selected }) else { return }
-        let item = PhotoItem(url: photo.url, thumbnail: photo.thumbnail)
-        let index = photos.firstIndex(where: { $0.id == selected })!
-        photos.insert(item, at: index+1)
-        selected = item.id
-        updatePreview()
-    }
-
-    func remove() {
-        let removed = photos.first { $0.id == selected }?.url
-        photos.removeAll { $0.id == selected }
-        if let url = removed, !photos.contains(where: { $0.url == url }) {
-            try? FileManager.default.removeItem(at: url)
-        }
-        selected = photos.last?.id
-        updatePreview()
-    }
-
-    func move(_ delta: Int) {
-        guard let index = photos.firstIndex(where: { $0.id == selected }), photos.indices.contains(index+delta) else { return }
-        photos.swapAt(index, index+delta)
-        updatePreview()
-    }
-
-    func save() {
-        guard (4...6).contains(photos.count), !busy else { return }
-        busy = true
-        status = "Đang lưu vào thư viện Ảnh…"
-        let urls = photos.map(\.url)
-        Task {
-            let permission = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            guard permission == .authorized || permission == .limited else {
-                busy = false
-                error = "Cho phép thêm ảnh trong Cài đặt → Ghép Ảnh → Ảnh, rồi thử lại."
-                return
-            }
-            let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".png")
-            do {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    work.async {
-                        do { try Collage.writePNG(urls, to: destination); continuation.resume() }
-                        catch { continuation.resume(throwing: error) }
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 6) {
+                ForEach(Array(editor.photos.enumerated()), id: \.element.id) { index, photo in
+                    ZStack(alignment: .topTrailing) {
+                        Button { editor.selected = photo.id } label: {
+                            VStack(spacing: 4) {
+                                if let asset = library.asset(photo.assetID) {
+                                    AssetThumbnail(asset: asset, manager: library.manager).frame(width: 48, height: 64)
+                                } else {
+                                    Color(.systemGray6).frame(width: 48, height: 64)
+                                }
+                                Text("\(index+1)").font(.caption).foregroundStyle(.secondary)
+                            }.padding(3)
+                                .overlay(Rectangle().stroke(editor.selected == photo.id ? Color.pink : .clear, lineWidth: 2))
+                        }.buttonStyle(.plain).accessibilityLabel("Ô ảnh \(index+1)")
+                        Button { editor.remove(photo.id) } label: {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: 20))
+                                .symbolRenderingMode(.palette).foregroundStyle(.white, .black.opacity(0.65))
+                                .frame(width: 44, height: 44, alignment: .topTrailing)
+                        }.buttonStyle(.plain).offset(x: 6, y: -3)
+                            .accessibilityLabel("Bỏ ô ảnh \(index+1)")
+                            .accessibilityIdentifier("selectedRemove-\(index)")
                     }
                 }
-                try await PHPhotoLibrary.shared().performChanges {
-                    let request = PHAssetCreationRequest.forAsset()
-                    request.addResource(with: .photo, fileURL: destination, options: nil)
-                }
-                photos = []
-                preview = nil
-                selected = nil
-                generation += 1
-                for url in Set(urls) { try? FileManager.default.removeItem(at: url) }
-                status = "Đã lưu vào Ảnh. Chọn ảnh cho lượt tiếp theo."
-            } catch { self.error = error.localizedDescription }
-            try? FileManager.default.removeItem(at: destination)
-            busy = false
-        }
-    }
-}
-
-struct PhotoPicker: UIViewControllerRepresentable {
-    let limit: Int
-    let finished: ([PHPickerResult]) -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(finished) }
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.filter = .images
-        config.selectionLimit = max(1, limit)
-        config.selection = .ordered
-        config.preferredAssetRepresentationMode = .current
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = context.coordinator
-        return picker
-    }
-    func updateUIViewController(_ controller: PHPickerViewController, context: Context) {}
-    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let finished: ([PHPickerResult]) -> Void
-        init(_ finished: @escaping ([PHPickerResult]) -> Void) { self.finished = finished }
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            finished(results)
-        }
+            }.padding(.top, 6).padding(.horizontal, 3)
+        }.frame(height: 100).disabled(editor.busy)
     }
 }
 
 struct EditorView: View {
     @StateObject private var editor = Editor()
-    @State private var picking = false
+    @StateObject private var library = PhotoLibrary()
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var limitedPicker = false
+    @State private var scrollAnchor: String?
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 4)
+
     var body: some View {
+        Group {
+            if editor.showingPreview { previewScreen }
+            else { libraryScreen }
+        }
+        .preferredColorScheme(.light)
+        .task {
+            // Unit tests use synthetic images and must not open a photo-permission prompt.
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                await library.requestAccess()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { library.reload() } }
+        .sheet(isPresented: $limitedPicker) {
+            LimitedPhotoPicker { limitedPicker = false; library.reload() }
+        }
+        .alert("Chưa hoàn thành", isPresented: Binding(get: { editor.error != nil }, set: { if !$0 { editor.error = nil } })) {
+            Button("Đóng", role: .cancel) { editor.error = nil }
+        } message: { Text(editor.error ?? "") }
+    }
+
+    private var libraryScreen: some View {
+        VStack(spacing: 0) {
+            Text("Gần đây").font(.title3.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 14)
+            HStack(alignment: .top) {
+                VStack(spacing: 8) {
+                    Text("Tất cả").font(.headline)
+                    Capsule().fill(Color.pink).frame(width: 28, height: 3)
+                }
+                Spacer()
+                if library.permission == .limited {
+                    Button("Chọn thêm ảnh") { limitedPicker = true }.font(.subheadline)
+                } else {
+                    Text("\(library.assets.count) ảnh").font(.subheadline).foregroundStyle(.secondary)
+                }
+            }.padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 3)
+
+            if library.permission == .authorized || library.permission == .limited {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 2) {
+                        ForEach(library.assets, id: \.localIdentifier) { asset in
+                            Button { editor.pick(asset.localIdentifier) } label: {
+                                AssetThumbnail(asset: asset, manager: library.manager)
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .overlay(alignment: .topTrailing) {
+                                        if editor.count(asset.localIdentifier) > 0 {
+                                            Text("×\(editor.count(asset.localIdentifier))")
+                                                .font(.caption.bold()).foregroundStyle(.white)
+                                                .padding(6).background(.pink, in: Capsule()).padding(5)
+                                        }
+                                    }
+                            }.buttonStyle(.plain)
+                                .disabled(editor.busy || editor.photos.count >= 6)
+                                .accessibilityLabel("Thêm ảnh vào bộ ghép")
+                                .accessibilityValue("Đã chọn \(editor.count(asset.localIdentifier)) lần")
+                                .accessibilityIdentifier("libraryPhoto-\(asset.localIdentifier)")
+                        }
+                    }.scrollTargetLayout()
+                    if library.assets.isEmpty {
+                        Text("Chưa có ảnh được phép truy cập.").foregroundStyle(.secondary).padding(.top, 50)
+                    }
+                }.scrollPosition(id: $scrollAnchor)
+            } else {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "photo.on.rectangle").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("Cho phép truy cập ảnh để hiển thị thư viện ngay tại đây.")
+                        .multilineTextAlignment(.center).padding(.horizontal, 30)
+                    if library.permission == .denied || library.permission == .restricted {
+                        Button("Mở Cài đặt") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                    } else {
+                        Button("Cho phép truy cập ảnh") { Task { await library.requestAccess() } }
+                    }
+                    Spacer()
+                }.frame(maxWidth: .infinity)
+            }
+        }
+        .background(.white)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                HStack {
+                    Text("\(editor.photos.count) / 6 ảnh đã chọn").font(.subheadline)
+                        .accessibilityIdentifier("selectionCount")
+                    Spacer()
+                    Button(action: editor.preparePreview) {
+                        if editor.busy { ProgressView().tint(.white) }
+                        else { Text("Bắt đầu").font(.subheadline.weight(.semibold)) }
+                    }.buttonStyle(.borderedProminent).tint(.black)
+                        .disabled(!(4...6).contains(editor.photos.count) || editor.busy)
+                        .accessibilityIdentifier("startCollage")
+                }
+                SelectedStrip(editor: editor, library: library)
+                Text(editor.status).font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            }.padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
+                .background(.white).overlay(alignment: .top) { Divider() }
+        }
+    }
+
+    private var previewScreen: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Ghép ảnh").font(.title2.bold())
+                Button { editor.showingPreview = false } label: {
+                    Label("Chọn ảnh", systemImage: "chevron.left")
+                }.disabled(editor.busy).accessibilityIdentifier("backToLibrary")
                 Spacer()
-                Button("Xong", action: editor.save)
-                    .buttonStyle(.borderedProminent).tint(.pink)
-                    .disabled(!(4...6).contains(editor.photos.count) || editor.busy)
+                Button("Xong", action: editor.save).buttonStyle(.borderedProminent).tint(.pink)
+                    .disabled(editor.busy).accessibilityIdentifier("saveCollage")
             }.padding().foregroundStyle(.white)
             ZStack {
                 Color.black
                 if let image = editor.preview {
                     Image(uiImage: image).resizable().scaledToFit().padding(12)
-                } else {
-                    Text("4 ảnh: 2×2\n5 hoặc 6 ảnh: tự đổi mẫu")
-                        .multilineTextAlignment(.center).foregroundStyle(.white)
+                        .accessibilityIdentifier("collagePreview")
                 }
+                if editor.busy { ProgressView().tint(.white).scaleEffect(1.5) }
             }.frame(maxHeight: .infinity)
-            VStack(spacing: 12) {
-                HStack {
-                    Button("Chọn ảnh", systemImage: "plus") { picking = true }
-                        .disabled(editor.photos.count >= 6 || editor.busy)
-                    Spacer()
-                    Text("\(editor.photos.count) / 6 ảnh").foregroundStyle(.secondary)
-                }
-                ScrollView(.horizontal) {
-                    HStack {
-                        ForEach(Array(editor.photos.enumerated()), id: \.element.id) { index, photo in
-                            Button { editor.selected = photo.id } label: {
-                                VStack {
-                                    Image(uiImage: photo.thumbnail).resizable().scaledToFill()
-                                        .frame(width: 64, height: 72).clipped()
-                                    Text("\(index+1)").font(.caption)
-                                }.padding(3).border(editor.selected == photo.id ? Color.pink : Color.clear, width: 2)
-                            }.buttonStyle(.plain)
-                        }
-                    }
-                }.frame(height: 105)
+            VStack(spacing: 8) {
+                SelectedStrip(editor: editor, library: library)
                 HStack {
                     Button { editor.move(-1) } label: { Image(systemName: "arrow.left") }.accessibilityLabel("Đưa ảnh sang trái")
                     Button { editor.move(1) } label: { Image(systemName: "arrow.right") }.accessibilityLabel("Đưa ảnh sang phải")
                     Spacer()
-                    Button("Nhân đôi", action: editor.duplicate).disabled(editor.photos.count >= 6)
-                    Button("Bỏ ảnh", action: editor.remove)
-                }.disabled(editor.busy || editor.selected == nil)
+                    Text("\(editor.photos.count) ảnh • PNG HD").font(.subheadline).foregroundStyle(.secondary)
+                }.disabled(editor.busy)
                 Text(editor.status).font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            }.padding().background(Color(.systemBackground))
+            }.padding().background(.white)
         }.background(.black)
-        .sheet(isPresented: $picking) {
-            PhotoPicker(limit: 6-editor.photos.count) { results in
-                picking = false
-                editor.importPhotos(results)
-            }
-        }
-        .alert("Chưa hoàn thành", isPresented: Binding(get: { editor.error != nil }, set: { if !$0 { editor.error = nil } })) {
-            Button("Đóng", role: .cancel) { editor.error = nil }
-        } message: { Text(editor.error ?? "") }
     }
 }
 

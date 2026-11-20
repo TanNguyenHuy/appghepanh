@@ -4,6 +4,26 @@ import ImageIO
 @testable import GhepAnh
 
 final class CollageTests: XCTestCase {
+    @MainActor func testRepeatedLibraryTapsKeepOrderAndIndependentSlots() {
+        let editor = Editor()
+        for identifier in ["A", "B", "C", "A"] { editor.pick(identifier) }
+        XCTAssertEqual(editor.photos.map(\.assetID), ["A", "B", "C", "A"])
+        XCTAssertEqual(editor.count("A"), 2)
+        XCTAssertEqual(Set(editor.photos.map(\.id)).count, 4)
+        editor.remove(editor.photos[0].id)
+        XCTAssertEqual(editor.photos.map(\.assetID), ["B", "C", "A"])
+        XCTAssertEqual(editor.count("A"), 1)
+        editor.move(-1)
+        XCTAssertEqual(editor.photos.map(\.assetID), ["B", "A", "C"])
+        editor.pick("A")
+        editor.pick("A"); editor.pick("A"); editor.pick("A")
+        XCTAssertEqual(editor.photos.count, 6)
+        editor.busy = true
+        editor.remove(editor.photos[0].id)
+        editor.pick("B")
+        XCTAssertEqual(editor.photos.count, 6)
+    }
+
     func testImageOrderMatchesTopLeftThenTopRight() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

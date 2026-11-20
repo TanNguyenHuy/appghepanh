@@ -4,3 +4,5 @@ DerivedData/
 Payload/
 *.ipa
 *.xcresult/
+UITestMedia/
+screenshots/
