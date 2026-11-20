@@ -153,6 +153,7 @@ struct EditorView: View {
                 Text("HEIC · \(editor.resolutionLabel)").font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("exportResolution")
             }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                .onTapGesture { editor.use64MP.toggle() }
         }.tint(.pink).disabled(editor.busy).accessibilityIdentifier("save64MP")
     }
 
