@@ -8,7 +8,7 @@ App cần quyền **đọc và thêm ảnh**. Khi chỉ cấp quyền truy cập
 
 Đọc HEIC/JPEG/PNG bằng ImageIO. 4 ảnh tự ghép 2×2, 5 ảnh có 2 ô trái + 3 ô phải, 6 ảnh có 2 cột × 3 hàng. Chưa hỗ trợ ghép video, nên thư viện chỉ liệt kê ảnh. Không thêm các tab Live/video/album chưa có chức năng.
 
-Bấm **Xong** để dựng HEIC 6928×9237 (khoảng 64 MP, theo ảnh thông tin Meitu mà bạn cung cấp) và thêm trực tiếp vào thư viện Ảnh sau khi bạn cấp quyền. Nguồn không bị sửa; cắt giữa ảnh để lấp ô và có viền trắng mảnh bên trong. HEIC dùng ImageIO với chất lượng 0.85, có nén mất dữ liệu; giữ kích thước 64 MP, không cam kết dung lượng cố định hay độ nét giống hệt Meitu. Đầu ra sRGB 8-bit SDR, không giữ HDR. Tốc độ và dung lượng phải đo trên máy thực tế. Log Export ghi riêng thời gian dựng, nén HEIC và nhập vào Ảnh, không ghi đường dẫn/ảnh cá nhân. Unit test so PNG/HEIC hai lần từ cùng ảnh vải giả lập 64 MP; số đo simulator không thay cho iPhone.
+Mặc định lưu HEIC 4936×6581 (khoảng 32 MP). Bật công tắc **Lưu 64 MP** để đổi sang 6928×9237; lựa chọn được nhớ qua các lần mở app. Công tắc có ở màn chọn và xem trước, khóa trong lúc xử lý. Bấm **Xong** để dựng HEIC theo chế độ đã chọn và thêm trực tiếp vào thư viện Ảnh sau khi bạn cấp quyền. Nguồn không bị sửa; cắt giữa ảnh để lấp ô và có viền trắng mảnh bên trong. HEIC dùng ImageIO với chất lượng 0.85, có nén mất dữ liệu; giữ kích thước 32 hoặc 64 MP đã chọn, không cam kết dung lượng cố định hay độ nét giống hệt Meitu. Đầu ra sRGB 8-bit SDR, không giữ HDR. Tốc độ và dung lượng phải đo trên máy thực tế. Log Export ghi riêng thời gian dựng, nén HEIC và nhập vào Ảnh, không ghi đường dẫn/ảnh cá nhân. Unit test so PNG/HEIC hai lần từ cùng ảnh vải giả lập 64 MP; số đo simulator không thay cho iPhone.
 
 ## Build khi chỉ có Windows
 

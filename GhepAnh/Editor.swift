@@ -9,6 +9,12 @@ struct PhotoItem: Identifiable {
 }
 
 @MainActor final class Editor: ObservableObject {
+    @Published var use64MP: Bool {
+        didSet { preferences.set(use64MP, forKey: "save64MP") }
+    }
+    private let preferences: UserDefaults
+    var exportSize: CGSize { use64MP ? Collage.largeSize : Collage.standardSize }
+    var resolutionLabel: String { use64MP ? "64 MP · 6928 × 9237" : "32 MP · 4936 × 6581" }
     @Published private(set) var photos: [PhotoItem] = []
     @Published var preview: UIImage?
     @Published var selected: UUID?
@@ -18,6 +24,11 @@ struct PhotoItem: Identifiable {
     @Published var error: String?
     private var sourceFiles: [String: URL] = [:]
     private let work = DispatchQueue(label: "GhepAnh.render", qos: .userInitiated)
+
+    init(preferences: UserDefaults = .standard) {
+        self.preferences = preferences
+        use64MP = preferences.bool(forKey: "save64MP")
+    }
 
     func pick(_ assetID: String) {
         guard !busy, photos.count < 6 else { return }
@@ -101,7 +112,7 @@ struct PhotoItem: Identifiable {
                 }
                 preview = UIImage(cgImage: image)
                 showingPreview = true
-                status = "HEIC HD 6928 × 9237. Bấm Xong để lưu vào Ảnh."
+                status = "Bấm Xong để lưu HEIC vào Ảnh."
             } catch {
                 self.error = error.localizedDescription
                 status = "Chưa tải được ảnh ghép. Các ảnh đã chọn vẫn được giữ."
@@ -112,6 +123,7 @@ struct PhotoItem: Identifiable {
 
     func save() {
         guard (4...6).contains(photos.count), !busy else { return }
+        let size = exportSize
         busy = true
         status = "Đang lưu vào thư viện Ảnh…"
         Task {
@@ -127,7 +139,7 @@ struct PhotoItem: Identifiable {
                 let urls = try await sources()
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     work.async {
-                        do { try autoreleasepool { try Collage.writeHEIC(urls, to: destination) }; continuation.resume() }
+                        do { try autoreleasepool { try Collage.writeHEIC(urls, to: destination, size: size) }; continuation.resume() }
                         catch { continuation.resume(throwing: error) }
                     }
                 }

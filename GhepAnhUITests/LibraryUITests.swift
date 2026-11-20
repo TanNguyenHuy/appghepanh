@@ -22,6 +22,16 @@ final class LibraryUITests: XCTestCase {
             if allow.waitForExistence(timeout: 5) { allow.tap() }
         }
 
+        let resolution = app.switches["save64MP"]
+        XCTAssertTrue(resolution.waitForExistence(timeout: 20))
+        XCTAssertEqual(resolution.value as? String, "0")
+        resolution.tap()
+        XCTAssertEqual(resolution.value as? String, "1")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(resolution.waitForExistence(timeout: 20))
+        XCTAssertEqual(resolution.value as? String, "1")
+
         let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'libraryPhoto-'")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 20))
         photo.tap(); photo.tap(); photo.tap(); photo.tap()
@@ -39,13 +49,22 @@ final class LibraryUITests: XCTestCase {
         XCTAssertEqual(count.label, "4 / 6 ảnh đã chọn")
         app.buttons["startCollage"].tap()
         XCTAssertTrue(app.images["collagePreview"].waitForExistence(timeout: 25))
+        XCTAssertEqual(resolution.value as? String, "1")
+        resolution.tap()
+        XCTAssertEqual(resolution.value as? String, "0")
+        let preview = XCTAttachment(screenshot: app.screenshot())
+        preview.name = "Cong-tac-32MP-64MP"
+        preview.lifetime = .keepAlways
+        add(preview)
         app.buttons["backToLibrary"].tap()
         XCTAssertEqual(count.label, "4 / 6 ảnh đã chọn")
+        XCTAssertEqual(resolution.value as? String, "0")
         app.buttons["startCollage"].tap()
         XCTAssertTrue(app.buttons["saveCollage"].waitForExistence(timeout: 25))
         app.buttons["saveCollage"].tap()
         XCTAssertTrue(count.waitForExistence(timeout: 40))
         XCTAssertEqual(count.label, "0 / 6 ảnh đã chọn")
         XCTAssertTrue(photo.exists)
+        XCTAssertEqual(resolution.value as? String, "0")
     }
 }

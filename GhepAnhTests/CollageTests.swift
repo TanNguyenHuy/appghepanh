@@ -5,6 +5,42 @@ import UniformTypeIdentifiers
 @testable import GhepAnh
 
 final class CollageTests: XCTestCase {
+    @MainActor func testResolutionDefaultsTo32MPAndRemembers64MPSwitch() throws {
+        let suite = "GhepAnhTests.\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let editor = Editor(preferences: preferences)
+        XCTAssertFalse(editor.use64MP)
+        XCTAssertEqual(editor.exportSize, CGSize(width: 4936, height: 6581))
+        editor.use64MP = true
+        let reopened = Editor(preferences: preferences)
+        XCTAssertTrue(reopened.use64MP)
+        XCTAssertEqual(reopened.exportSize, CGSize(width: 6928, height: 9237))
+        reopened.use64MP = false
+        XCTAssertEqual(Editor(preferences: preferences).exportSize, Collage.standardSize)
+    }
+
+    func test32MPHEICUsesSelectedDimensions() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = folder.appendingPathComponent("source.png")
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 120)).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 80, height: 120))
+        }
+        let original = try XCTUnwrap(image.pngData())
+        try original.write(to: source)
+        let output = folder.appendingPathComponent("32mp.heic")
+        try Collage.writeHEIC(Array(repeating: source, count: 4), to: output, size: Collage.standardSize)
+        let encoded = try XCTUnwrap(CGImageSourceCreateWithURL(output as CFURL, nil))
+        XCTAssertEqual(CGImageSourceGetType(encoded) as String?, UTType.heic.identifier)
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(encoded, 0, nil) as? [CFString: Any])
+        XCTAssertEqual((properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue, 4936)
+        XCTAssertEqual((properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue, 6581)
+        XCTAssertEqual(try Data(contentsOf: source), original)
+    }
+
     @MainActor func testRepeatedLibraryTapsKeepOrderAndIndependentSlots() {
         let editor = Editor()
         for identifier in ["A", "B", "C", "A"] { editor.pick(identifier) }
@@ -95,7 +131,7 @@ final class CollageTests: XCTestCase {
             XCTAssertEqual(preview.width, 300)
             XCTAssertEqual(preview.height, 400)
         }
-        let fullSize = try Collage.render(Array(repeating: source, count: 4))
+        let fullSize = try Collage.render(Array(repeating: source, count: 4), size: Collage.largeSize)
         let output = folder.appendingPathComponent("collage.heic")
         let baseline = folder.appendingPathComponent("baseline.png")
         for iteration in 1...2 {

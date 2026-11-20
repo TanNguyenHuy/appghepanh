@@ -137,12 +137,23 @@ struct EditorView: View {
                         .disabled(!(4...6).contains(editor.photos.count) || editor.busy)
                         .accessibilityIdentifier("startCollage")
                 }
+                resolutionControl
                 SelectedStrip(editor: editor, library: library)
                 Text(editor.status).font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
             }.padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
                 .background(.white).overlay(alignment: .top) { Divider() }
         }
+    }
+
+    private var resolutionControl: some View {
+        Toggle(isOn: $editor.use64MP) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Lưu 64 MP").font(.subheadline)
+                Text("HEIC · \(editor.resolutionLabel)").font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("exportResolution")
+            }
+        }.tint(.pink).disabled(editor.busy).accessibilityIdentifier("save64MP")
     }
 
     private var previewScreen: some View {
@@ -165,6 +176,7 @@ struct EditorView: View {
                 if editor.busy { ProgressView().tint(.white).scaleEffect(1.5) }
             }.frame(maxHeight: .infinity)
             VStack(spacing: 8) {
+                resolutionControl
                 SelectedStrip(editor: editor, library: library)
                 HStack {
                     Button { editor.move(-1) } label: { Image(systemName: "arrow.left") }.accessibilityLabel("Đưa ảnh sang trái")

@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 import OSLog
 
 enum Collage {
-    static let exportSize = CGSize(width: 6928, height: 9237)
+    static let standardSize = CGSize(width: 4936, height: 6581)
+    static let largeSize = CGSize(width: 6928, height: 9237)
     private static let log = Logger(subsystem: "com.tannguyenhuy.ghepanh", category: "Export")
 
     static func rectangles(_ count: Int) throws -> [CGRect] {
@@ -39,7 +40,7 @@ enum Collage {
         return image
     }
 
-    static func render(_ urls: [URL], size: CGSize = exportSize) throws -> CGImage {
+    static func render(_ urls: [URL], size: CGSize = standardSize) throws -> CGImage {
         let cells = try rectangles(urls.count)
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: Int(size.width), height: Int(size.height),
@@ -94,9 +95,9 @@ enum Collage {
         return image
     }
 
-    static func writeHEIC(_ urls: [URL], to destination: URL) throws {
+    static func writeHEIC(_ urls: [URL], to destination: URL, size: CGSize) throws {
         let started = Date()
-        let image = try render(urls)
+        let image = try render(urls, size: size)
         let rendered = Date()
         try encodeHEIC(image, to: destination)
         log.info("Render: \(rendered.timeIntervalSince(started)) s; HEIC: \(Date().timeIntervalSince(rendered)) s")
