@@ -22,6 +22,8 @@ final class LibraryUITests: XCTestCase {
             if allow.waitForExistence(timeout: 5) { allow.tap() }
         }
 
+        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'libraryPhoto-'")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 20))
         let resolution = app.switches["save64MP"]
         XCTAssertTrue(resolution.waitForExistence(timeout: 20))
         XCTAssertEqual(resolution.value as? String, "0")
@@ -32,7 +34,6 @@ final class LibraryUITests: XCTestCase {
         XCTAssertTrue(resolution.waitForExistence(timeout: 20))
         XCTAssertEqual(resolution.value as? String, "1")
 
-        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'libraryPhoto-'")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 20))
         photo.tap(); photo.tap(); photo.tap(); photo.tap()
         XCTAssertEqual(photo.value as? String, "Đã chọn 4 lần")

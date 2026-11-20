@@ -152,7 +152,7 @@ struct EditorView: View {
                 Text("Lưu 64 MP").font(.subheadline)
                 Text("HEIC · \(editor.resolutionLabel)").font(.caption).foregroundStyle(.secondary)
                     .accessibilityIdentifier("exportResolution")
-            }
+            }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }.tint(.pink).disabled(editor.busy).accessibilityIdentifier("save64MP")
     }
 
