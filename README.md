@@ -1,6 +1,6 @@
 # Ghép Ảnh cho iPhone — nguồn và quy trình build
 
-**Trạng thái: đã viết mã; chưa build trên Xcode hoặc kiểm tra trên iPhone. Chưa có IPA.** Không đổi đuôi file exe/zip thành IPA.
+**Bản thử, chưa kiểm tra trên iPhone thật.** Workflow macOS build và kiểm tra mã, sau khi thành công sẽ tạo artifact IPA chưa ký để sideload. Không đổi đuôi file exe/zip thành IPA.
 
 Chọn ảnh từ thư viện bằng bộ chọn Photos của iOS theo thứ tự bấm, không tự quét tất cả ảnh. Đọc HEIC/JPEG/PNG bằng ImageIO, ưu tiên representation hiện tại để tránh chuyển HEIC không cần thiết. 4 ảnh tự ghép 2×2, 5 ảnh có 2 ô trái + 3 ô phải, 6 ảnh có 2 cột × 3 hàng. Có dùng lại ảnh chi tiết và đổi thứ tự.
 

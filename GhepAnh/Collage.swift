@@ -73,19 +73,21 @@ enum Collage {
                 context.restoreGState()
             }
         }
-        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
-        context.setLineWidth(max(1, size.width/540))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.setShouldAntialias(false)
+        let line = max(1, round(size.width/540))
         for cell in cells {
             if cell.maxX < 0.999 {
-                context.move(to: CGPoint(x: cell.maxX*size.width, y: (1-cell.minY)*size.height))
-                context.addLine(to: CGPoint(x: cell.maxX*size.width, y: (1-cell.maxY)*size.height))
+                context.fill(CGRect(x: round(cell.maxX*size.width)-floor(line/2),
+                                    y: round((1-cell.maxY)*size.height),
+                                    width: line, height: ceil(cell.height*size.height)))
             }
             if cell.maxY < 0.999 {
-                context.move(to: CGPoint(x: cell.minX*size.width, y: (1-cell.maxY)*size.height))
-                context.addLine(to: CGPoint(x: cell.maxX*size.width, y: (1-cell.maxY)*size.height))
+                context.fill(CGRect(x: round(cell.minX*size.width),
+                                    y: round((1-cell.maxY)*size.height)-floor(line/2),
+                                    width: ceil(cell.width*size.width), height: line))
             }
         }
-        context.strokePath()
         guard let image = context.makeImage() else { throw Failure("Chưa dựng được ảnh ghép.") }
         return image
     }
