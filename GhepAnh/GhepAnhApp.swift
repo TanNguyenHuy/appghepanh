@@ -172,7 +172,6 @@ struct PhotoPicker: UIViewControllerRepresentable {
         let finished: ([PHPickerResult]) -> Void
         init(_ finished: @escaping ([PHPickerResult]) -> Void) { self.finished = finished }
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            picker.dismiss(animated: true)
             finished(results)
         }
     }
@@ -230,7 +229,12 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
             }.padding().background(Color(.systemBackground))
         }.background(.black)
-        .sheet(isPresented: $picking) { PhotoPicker(limit: 6-editor.photos.count, finished: editor.importPhotos) }
+        .sheet(isPresented: $picking) {
+            PhotoPicker(limit: 6-editor.photos.count) { results in
+                picking = false
+                editor.importPhotos(results)
+            }
+        }
         .alert("Chưa hoàn thành", isPresented: Binding(get: { editor.error != nil }, set: { if !$0 { editor.error = nil } })) {
             Button("Đóng", role: .cancel) { editor.error = nil }
         } message: { Text(editor.error ?? "") }

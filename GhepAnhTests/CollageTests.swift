@@ -4,6 +4,34 @@ import ImageIO
 @testable import GhepAnh
 
 final class CollageTests: XCTestCase {
+    func testImageOrderMatchesTopLeftThenTopRight() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let colors: [UIColor] = [.red, .green, .blue, .yellow]
+        let urls = try colors.enumerated().map { index, color -> URL in
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 120)).image { context in
+                color.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 80, height: 120))
+            }
+            let url = folder.appendingPathComponent("\(index).png")
+            try XCTUnwrap(image.pngData()).write(to: url)
+            return url
+        }
+        let image = try Collage.render(urls, size: CGSize(width: 300, height: 400))
+        let data = try XCTUnwrap(image.dataProvider?.data)
+        let bytes = try XCTUnwrap(CFDataGetBytePtr(data))
+        func rgb(_ x: Int, _ y: Int) -> [UInt8] {
+            let offset = y*image.bytesPerRow+x*4
+            return [bytes[offset], bytes[offset+1], bytes[offset+2]]
+        }
+        XCTAssertEqual(rgb(75, 100), [255, 0, 0])
+        XCTAssertEqual(rgb(225, 100), [0, 255, 0])
+        XCTAssertEqual(rgb(75, 300), [0, 0, 255])
+        XCTAssertEqual(rgb(225, 300), [255, 255, 0])
+        XCTAssertEqual(rgb(150, 100), [255, 255, 255])
+    }
+
     func testLayoutKeepsFivePhotoArrangement() throws {
         let cells = try Collage.rectangles(5)
         XCTAssertEqual(cells.count, 5)
