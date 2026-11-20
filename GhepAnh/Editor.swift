@@ -1,6 +1,7 @@
 import SwiftUI
 import Photos
 import UniformTypeIdentifiers
+import OSLog
 
 struct PhotoItem: Identifiable {
     let id = UUID()
@@ -100,7 +101,7 @@ struct PhotoItem: Identifiable {
                 }
                 preview = UIImage(cgImage: image)
                 showingPreview = true
-                status = "PNG HD 6928 × 9237. Bấm Xong để lưu vào Ảnh."
+                status = "HEIC HD 6928 × 9237. Bấm Xong để lưu vào Ảnh."
             } catch {
                 self.error = error.localizedDescription
                 status = "Chưa tải được ảnh ghép. Các ảnh đã chọn vẫn được giữ."
@@ -121,18 +122,22 @@ struct PhotoItem: Identifiable {
                 error = "Cho phép thêm ảnh trong Cài đặt → Ghép Ảnh → Ảnh rồi thử lại."
                 return
             }
-            let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".png")
+            let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".heic")
             do {
                 let urls = try await sources()
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     work.async {
-                        do { try Collage.writePNG(urls, to: destination); continuation.resume() }
+                        do { try autoreleasepool { try Collage.writeHEIC(urls, to: destination) }; continuation.resume() }
                         catch { continuation.resume(throwing: error) }
                     }
                 }
+                let encoded = Date()
                 try await PHPhotoLibrary.shared().performChanges {
-                    PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: destination, options: nil)
+                    let options = PHAssetResourceCreationOptions()
+                    options.uniformTypeIdentifier = UTType.heic.identifier
+                    PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: destination, options: options)
                 }
+                Logger(subsystem: "com.tannguyenhuy.ghepanh", category: "Export").info("Photos import: \(Date().timeIntervalSince(encoded)) s")
                 photos = []; preview = nil; selected = nil; showingPreview = false
                 for url in sourceFiles.values { try? FileManager.default.removeItem(at: url) }
                 sourceFiles = [:]

@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import ImageIO
+import UniformTypeIdentifiers
 @testable import GhepAnh
 
 final class CollageTests: XCTestCase {
@@ -61,25 +62,76 @@ final class CollageTests: XCTestCase {
         XCTAssertThrowsError(try Collage.rectangles(3))
     }
 
-    func testPNGExportMatchesUserMeituDimensionsAndKeepsSources() throws {
+    func testHEICExportMatchesUserMeituDimensionsAndKeepsSources() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let source = folder.appendingPathComponent("source.png")
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 80, height: 120)).image { context in
-            UIColor.red.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 80, height: 120))
+        // Deterministic fabric-like texture, not a flat color or a personal photo.
+        let width = 768, height = 1024
+        var pixels = [UInt8](repeating: 255, count: width*height*4)
+        var seed: UInt32 = 42
+        for y in 0..<height {
+            for x in 0..<width {
+                seed = seed &* 1664525 &+ 1013904223
+                let noise = Int(seed >> 27)-16
+                let stripe = Int(24*sin(Double(x)*0.7+Double(y)*0.004))
+                let shade = 115 + x*50/width + y*25/height + stripe + noise
+                let offset = (y*width+x)*4
+                pixels[offset] = UInt8(clamping: shade)
+                pixels[offset+1] = UInt8(clamping: shade+12)
+                pixels[offset+2] = UInt8(clamping: shade+20)
+            }
         }
-        let original = try XCTUnwrap(image.pngData())
+        let provider = try XCTUnwrap(CGDataProvider(data: Data(pixels) as CFData))
+        let texture = try XCTUnwrap(CGImage(width: width, height: height, bitsPerComponent: 8,
+            bitsPerPixel: 32, bytesPerRow: width*4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent))
+        let original = try XCTUnwrap(UIImage(cgImage: texture).pngData())
         try original.write(to: source)
         for count in [4, 5, 6] {
             let preview = try Collage.render(Array(repeating: source, count: count), size: CGSize(width: 300, height: 400))
             XCTAssertEqual(preview.width, 300)
             XCTAssertEqual(preview.height, 400)
         }
-        let output = folder.appendingPathComponent("collage.png")
-        try Collage.writePNG(Array(repeating: source, count: 4), to: output)
+        let fullSize = try Collage.render(Array(repeating: source, count: 4))
+        let output = folder.appendingPathComponent("collage.heic")
+        let baseline = folder.appendingPathComponent("baseline.png")
+        for iteration in 1...2 {
+            try autoreleasepool {
+                let started = Date()
+                let png = try XCTUnwrap(CGImageDestinationCreateWithURL(baseline as CFURL,
+                    UTType.png.identifier as CFString, 1, nil))
+                CGImageDestinationAddImage(png, fullSize, nil)
+                XCTAssertTrue(CGImageDestinationFinalize(png))
+                let pngSeconds = Date().timeIntervalSince(started)
+                let heicStarted = Date()
+                try Collage.encodeHEIC(fullSize, to: output)
+                let heicSeconds = Date().timeIntervalSince(heicStarted)
+                let pngBytes = try baseline.resourceValues(forKeys: [.fileSizeKey]).fileSize!
+                let heicBytes = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize!
+                print("EXPORT_BENCHMARK run=\(iteration) pixels=6928x9237 png_s=\(pngSeconds) heic_s=\(heicSeconds) png_bytes=\(pngBytes) heic_bytes=\(heicBytes)")
+                XCTAssertLessThan(heicBytes, pngBytes)
+            }
+        }
         let encoded = try XCTUnwrap(CGImageSourceCreateWithURL(output as CFURL, nil))
+        XCTAssertEqual(CGImageSourceGetType(encoded) as String?, UTType.heic.identifier)
+        XCTAssertEqual(CGImageSourceGetCount(encoded), 1)
+        let decoded = try Collage.thumbnail(output, maxEdge: 800)
+        XCTAssertEqual(decoded.height, 800)
+        func sample(_ image: CGImage) throws -> [UInt8] {
+            let context = try XCTUnwrap(CGContext(data: nil, width: 80, height: 80,
+                bitsPerComponent: 8, bytesPerRow: 320, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.interpolationQuality = .high
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 80, height: 80))
+            return Array(UnsafeBufferPointer(start: context.data!.assumingMemoryBound(to: UInt8.self), count: 80*80*4))
+        }
+        let reference = try sample(Collage.thumbnail(baseline, maxEdge: 800))
+        let actual = try sample(decoded)
+        let meanError = zip(reference, actual).reduce(0.0) { $0 + abs(Double($1.0)-Double($1.1)) } / Double(actual.count)
+        XCTAssertLessThan(meanError, 5, "HEIC must preserve the fixture's overall colors and detail.")
         let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(encoded, 0, nil) as? [CFString: Any])
         XCTAssertEqual((properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue, 6928)
         XCTAssertEqual((properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue, 9237)

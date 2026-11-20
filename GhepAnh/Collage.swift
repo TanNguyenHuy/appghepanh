@@ -2,9 +2,11 @@ import Foundation
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
+import OSLog
 
 enum Collage {
     static let exportSize = CGSize(width: 6928, height: 9237)
+    private static let log = Logger(subsystem: "com.tannguyenhuy.ghepanh", category: "Export")
 
     static func rectangles(_ count: Int) throws -> [CGRect] {
         switch count {
@@ -92,13 +94,20 @@ enum Collage {
         return image
     }
 
-    static func writePNG(_ urls: [URL], to destination: URL) throws {
+    static func writeHEIC(_ urls: [URL], to destination: URL) throws {
+        let started = Date()
         let image = try render(urls)
-        guard let writer = CGImageDestinationCreateWithURL(destination as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            throw Failure("Không tạo được file PNG.")
+        let rendered = Date()
+        try encodeHEIC(image, to: destination)
+        log.info("Render: \(rendered.timeIntervalSince(started)) s; HEIC: \(Date().timeIntervalSince(rendered)) s")
+    }
+
+    static func encodeHEIC(_ image: CGImage, to destination: URL) throws {
+        guard let writer = CGImageDestinationCreateWithURL(destination as CFURL, UTType.heic.identifier as CFString, 1, nil) else {
+            throw Failure("Thiết bị chưa tạo được ảnh HEIC. Các ảnh đã chọn vẫn được giữ.")
         }
-        CGImageDestinationAddImage(writer, image, nil)
-        guard CGImageDestinationFinalize(writer) else { throw Failure("Chưa lưu được file PNG.") }
+        CGImageDestinationAddImage(writer, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
+        guard CGImageDestinationFinalize(writer) else { throw Failure("Chưa lưu được file HEIC. Hãy kiểm tra dung lượng trống rồi thử lại.") }
     }
 }
 

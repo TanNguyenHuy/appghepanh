@@ -49,7 +49,7 @@ jobs:
             xcrun simctl boot "$SIMULATOR_ID"
           fi
           xcrun simctl bootstatus "$SIMULATOR_ID" -b
-      - name: Test layouts and PNG output
+      - name: Test layouts and HEIC output
         id: tests
         timeout-minutes: 12
         run: |

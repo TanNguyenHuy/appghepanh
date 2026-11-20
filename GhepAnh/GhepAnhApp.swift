@@ -170,7 +170,7 @@ struct EditorView: View {
                     Button { editor.move(-1) } label: { Image(systemName: "arrow.left") }.accessibilityLabel("Đưa ảnh sang trái")
                     Button { editor.move(1) } label: { Image(systemName: "arrow.right") }.accessibilityLabel("Đưa ảnh sang phải")
                     Spacer()
-                    Text("\(editor.photos.count) ảnh • PNG HD").font(.subheadline).foregroundStyle(.secondary)
+                    Text("\(editor.photos.count) ảnh • HEIC HD").font(.subheadline).foregroundStyle(.secondary)
                 }.disabled(editor.busy)
                 Text(editor.status).font(.footnote).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
