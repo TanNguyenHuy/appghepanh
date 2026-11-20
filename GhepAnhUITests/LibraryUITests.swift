@@ -25,6 +25,7 @@ final class LibraryUITests: XCTestCase {
         let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'libraryPhoto-'")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 20))
         photo.tap(); photo.tap(); photo.tap(); photo.tap()
+        XCTAssertEqual(photo.value as? String, "Đã chọn 4 lần")
         let count = app.staticTexts["selectionCount"]
         XCTAssertEqual(count.label, "4 / 6 ảnh đã chọn")
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'selectedRemove-'")).count, 4)

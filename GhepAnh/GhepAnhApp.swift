@@ -25,6 +25,7 @@ struct SelectedStrip: View {
                             Image(systemName: "xmark.circle.fill").font(.system(size: 20))
                                 .symbolRenderingMode(.palette).foregroundStyle(.white, .black.opacity(0.65))
                                 .frame(width: 44, height: 44, alignment: .topTrailing)
+                                .contentShape(Rectangle())
                         }.buttonStyle(.plain).offset(x: 6, y: -3)
                             .accessibilityLabel("Bỏ ô ảnh \(index+1)")
                             .accessibilityIdentifier("selectedRemove-\(index)")

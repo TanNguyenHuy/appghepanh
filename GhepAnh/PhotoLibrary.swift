@@ -62,6 +62,7 @@ struct AssetThumbnail: View {
                 }
             }
         }
+        .contentShape(Rectangle())
         .onAppear {
             let options = PHImageRequestOptions()
             options.deliveryMode = .opportunistic
