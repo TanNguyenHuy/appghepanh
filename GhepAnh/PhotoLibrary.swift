@@ -29,7 +29,7 @@ import PhotosUI
             assets = []; byID = [:]; return
         }
         let options = PHFetchOptions()
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
         let result = PHAsset.fetchAssets(with: .image, options: options)
         var images: [PHAsset] = []
         result.enumerateObjects { asset, _, _ in images.append(asset) }
