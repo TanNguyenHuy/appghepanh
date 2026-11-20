@@ -1,0 +1,8 @@
+build/
+DerivedData/
+*.xcodeproj/
+Payload/
+*.ipa
+*.xcresult/
+UITestMedia/
+screenshots/
