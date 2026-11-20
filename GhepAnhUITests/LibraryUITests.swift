@@ -4,13 +4,23 @@ final class LibraryUITests: XCTestCase {
     func testLibraryRepeatedSelectionPreviewAndSave() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
+        addUIInterruptionMonitor(withDescription: "Photo library authorization") { alert in
+            let allow = alert.buttons.matching(NSPredicate(
+                format: "label CONTAINS[c] 'Full Access' OR label CONTAINS[c] 'All Photos'" )).firstMatch
+            guard allow.exists else { return false }
+            allow.tap()
+            return true
+        }
         app.launch()
-        let access = app.buttons["Cho phép truy cập ảnh"]
-        if access.exists && access.isHittable { access.tap() }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let allow = springboard.buttons.matching(NSPredicate(
             format: "label CONTAINS[c] 'Full Access' OR label CONTAINS[c] 'All Photos'" )).firstMatch
-        if allow.waitForExistence(timeout: 10) { allow.tap() }
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        else {
+            let access = app.buttons["Cho phép truy cập ảnh"]
+            if access.exists && access.isHittable { access.tap() }
+            if allow.waitForExistence(timeout: 5) { allow.tap() }
+        }
 
         let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'libraryPhoto-'")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 20))

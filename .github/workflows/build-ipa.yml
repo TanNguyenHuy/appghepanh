@@ -50,6 +50,7 @@ jobs:
           fi
           xcrun simctl bootstatus "$SIMULATOR_ID" -b
       - name: Test layouts and PNG output
+        id: tests
         timeout-minutes: 12
         run: |
           mkdir -p UITestMedia
@@ -58,7 +59,9 @@ jobs:
           from pathlib import Path
           def chunk(kind, data):
               return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
-          for index, color in enumerate([(190,40,60),(30,130,90),(40,90,190),(210,150,40)]):
+          palette = [(190,40,60),(30,130,90),(40,90,190),(210,150,40)]
+          for index in range(24):
+              color = palette[index % len(palette)]
               row = b'\x00' + bytes(color)*360
               png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR',struct.pack('>IIBBBBB',360,480,8,2,0,0,0))
               png += chunk(b'IDAT',zlib.compress(row*480)) + chunk(b'IEND',b'')
@@ -70,7 +73,15 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
       - name: Export UI screenshots
+        if: always() && steps.tests.outcome != 'skipped'
         run: xcrun xcresulttool export attachments --path TestResults.xcresult --output-path screenshots
+      - name: Upload test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GhepAnh-Test-Diagnostics
+          path: screenshots/
+          retention-days: 3
       - name: Package unsigned IPA for sideload signing
         shell: bash
         run: |

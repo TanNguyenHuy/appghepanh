@@ -158,6 +158,7 @@ struct EditorView: View {
                 Color.black
                 if let image = editor.preview {
                     Image(uiImage: image).resizable().scaledToFit().padding(12)
+                        .accessibilityLabel("Ảnh ghép xem trước")
                         .accessibilityIdentifier("collagePreview")
                 }
                 if editor.busy { ProgressView().tint(.white).scaleEffect(1.5) }
