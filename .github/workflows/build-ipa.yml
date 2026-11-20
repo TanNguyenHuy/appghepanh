@@ -20,27 +20,41 @@ jobs:
             brew install xcodegen
           fi
           xcodegen generate --spec project.yml
-      - name: Pick available iPhone simulator
-        shell: bash
-        run: |
-          xcrun simctl list devices available -j > devices.json
-          python3 - <<'PY'
-          import json, os
-          devices = json.load(open('devices.json'))['devices']
-          selected = next(d['udid'] for group in devices.values() for d in group if d['name'].startswith('iPhone'))
-          with open(os.environ['GITHUB_ENV'], 'a') as env:
-              env.write(f'SIMULATOR_ID={selected}\n')
-          PY
-      - name: Test layouts and PNG output
-        run: >-
-          xcodebuild test -project GhepAnh.xcodeproj -scheme GhepAnh
-          -destination "platform=iOS Simulator,id=$SIMULATOR_ID"
-          -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
       - name: Build device app without signing
         run: >-
           xcodebuild build -project GhepAnh.xcodeproj -scheme GhepAnh
           -configuration Release -sdk iphoneos -destination 'generic/platform=iOS'
           -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+      - name: Pick simulator matching active Xcode SDK
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          xcrun simctl list devices available -j > devices.json
+          export SIMULATOR_SDK_VERSION="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          python3 - <<'PY'
+          import json, os
+          devices = json.load(open('devices.json'))['devices']
+          runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-' + os.environ['SIMULATOR_SDK_VERSION'].replace('.', '-')
+          candidates = devices.get(runtime, [])
+          selected = next(d for d in candidates if d['name'].startswith('iPhone'))
+          print('Using', runtime, selected['name'], selected['state'])
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f"SIMULATOR_ID={selected['udid']}\n")
+              env.write(f"SIMULATOR_STATE={selected['state']}\n")
+          PY
+      - name: Boot selected simulator
+        timeout-minutes: 5
+        run: |
+          if [ "$SIMULATOR_STATE" != "Booted" ]; then
+            xcrun simctl boot "$SIMULATOR_ID"
+          fi
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+      - name: Test layouts and PNG output
+        timeout-minutes: 8
+        run: >-
+          xcodebuild test -project GhepAnh.xcodeproj -scheme GhepAnh
+          -destination "platform=iOS Simulator,id=$SIMULATOR_ID"
+          -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
       - name: Package unsigned IPA for sideload signing
         shell: bash
         run: |
